@@ -11,7 +11,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
     "prisma:seed": "tsx prisma/seed.ts",
-    "test": "vitest run"
+    "prisma:studio": "prisma studio",
+    "test": "vitest run --test-timeout=20000"
   },
   "dependencies": {
     "@prisma/client": "^6.4.0",

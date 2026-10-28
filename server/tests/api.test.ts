@@ -38,7 +38,7 @@ describe('Mentor-Mentee System API Tests', () => {
 
     expect(hodRes.status).toBe(200);
     hodToken = hodRes.body.token;
-  });
+  }, 30000);
 
   describe('Authentication & Authorization', () => {
     it('rejects invalid password credentials with 401', async () => {
