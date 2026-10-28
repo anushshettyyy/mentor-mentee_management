@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Environment variables (NEVER commit credentials)
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+
+# Logs
+*.log

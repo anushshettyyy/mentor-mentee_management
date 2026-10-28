@@ -1,0 +1,418 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  STUDENT
+  MENTOR
+  HOD
+  ADMIN
+}
+
+enum ProfileStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  CHANGES_REQUESTED
+  APPROVED_ENDORSED
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  INACTIVE
+  REASSIGNED
+}
+
+enum SessionType {
+  ONE_ON_ONE
+  ACADEMIC_REVIEW
+  CAREER_COUNSELING
+  SUPPORT_WELLBEING
+  CRISIS_FOLLOWUP
+  CASUAL_CHECKIN
+}
+
+enum SessionStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  RESCHEDULED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum RecommendationCategory {
+  ACADEMIC_IMPROVEMENT
+  CAREER_GUIDANCE
+  TECHNICAL_SKILLS
+  COMMUNICATION
+  SOFT_SKILLS
+  WELLBEING_SUPPORT
+  EXTRACURRICULAR_ACTIVITIES
+  PROJECTS
+  INTERNSHIPS
+  CERTIFICATIONS
+  PERSONAL_DEVELOPMENT
+}
+
+enum RecommendationStatus {
+  DRAFT
+  IN_PROGRESS
+  SUBMITTED_FOR_ENDORSEMENT
+  ENDORSED
+  REJECTED
+  COMPLETED
+}
+
+enum ActionItemStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+}
+
+enum EndorsementStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+enum EndorsementItemType {
+  RECOMMENDATION
+  PROFILE_APPROVAL
+  MENTORING_PLAN
+}
+
+enum LearningStyle {
+  VISUAL
+  AUDITORY
+  KINESTHETIC
+  READING_WRITING
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  code      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users              User[]
+  mentorAssignments  MentorAssignment[]
+  studentProfiles    StudentProfile[]
+  facultyProfiles    FacultyProfile[]
+
+  @@map("departments")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  role          Role      @default(STUDENT)
+  firstName     String
+  lastName      String
+  phone         String?
+  avatarUrl     String?
+  departmentId  String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  department        Department?     @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  studentProfile    StudentProfile?
+  facultyProfile    FacultyProfile?
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  assignedByMentorAssignments MentorAssignment[] @relation("AssignedBy")
+
+  @@index([email])
+  @@index([role])
+  @@index([departmentId])
+  @@map("users")
+}
+
+model StudentProfile {
+  id                      String         @id @default(uuid())
+  userId                  String         @unique
+  usn                     String         @unique
+  course                  String         @default("B.Tech")
+  department              String
+  departmentId            String?
+  semester                Int            @default(1)
+  academicYear            String         @default("2025-2026")
+  dateOfBirth             DateTime?
+  address                 String?
+  phone                   String?
+  profilePhoto            String?
+  
+  // Dynamic profile attributes
+  hobbies                 String[]       @default([])
+  interests               String[]       @default([])
+  skills                  String[]       @default([])
+  strengths               String[]       @default([])
+  areasToImprove          String[]       @default([])
+  careerGoals             String?
+  shortTermGoals          String?
+  longTermGoals           String?
+  achievements            Json?          @default("[]")
+  certifications          Json?          @default("[]")
+  extracurricularActivities String?
+  languages               String[]       @default([])
+  preferredLearningStyle  LearningStyle  @default(VISUAL)
+  academicInterests       String?
+  supportRequested        String?
+
+  completionPercentage    Int            @default(20)
+  status                  ProfileStatus  @default(DRAFT)
+  reviewNotes             String?
+  submittedAt             DateTime?
+  reviewedAt              DateTime?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  user                    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deptRef                 Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  mentorAssignments       MentorAssignment[]
+  mentoringSessions       MentoringSession[]
+  recommendations         Recommendation[]
+  actionItems             ActionItem[]
+  academicRecords         AcademicRecord[]
+  endorsements            Endorsement[]
+
+  @@index([usn])
+  @@index([status])
+  @@index([departmentId])
+  @@index([semester])
+  @@map("student_profiles")
+}
+
+model FacultyProfile {
+  id              String      @id @default(uuid())
+  userId          String      @unique
+  employeeId      String      @unique
+  department      String
+  departmentId    String?
+  designation     String      @default("Assistant Professor")
+  qualifications  String      @default("Ph.D., M.Tech")
+  specialization  String?
+  cabinLocation   String?
+  officeHours     String?
+  maxMentees      Int         @default(20)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deptRef         Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  mentorAssignments MentorAssignment[]
+  mentoringSessions MentoringSession[]
+  recommendations   Recommendation[]
+  actionItems       ActionItem[]
+  endorsementsRequested Endorsement[] @relation("MentorEndorsements")
+  endorsementsReviewed  Endorsement[] @relation("HodEndorsements")
+
+  @@index([employeeId])
+  @@index([departmentId])
+  @@map("faculty_profiles")
+}
+
+model MentorAssignment {
+  id               String           @id @default(uuid())
+  studentProfileId String
+  facultyProfileId String
+  departmentId     String?
+  status           AssignmentStatus @default(ACTIVE)
+  assignedAt       DateTime         @default(now())
+  endedAt          DateTime?
+  assignedById     String?
+  notes            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  studentProfile   StudentProfile   @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  facultyProfile   FacultyProfile   @relation(fields: [facultyProfileId], references: [id], onDelete: Cascade)
+  department       Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  assignedBy       User?            @relation("AssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  mentoringSessions MentoringSession[]
+
+  @@index([studentProfileId])
+  @@index([facultyProfileId])
+  @@index([status])
+  @@map("mentor_assignments")
+}
+
+model AcademicRecord {
+  id               String         @id @default(uuid())
+  studentProfileId String
+  semester         Int
+  sgpa             Float
+  cgpa             Float
+  backlogsCount    Int            @default(0)
+  subjects         Json?          @default("[]")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+
+  @@index([studentProfileId])
+  @@map("academic_records")
+}
+
+model MentoringSession {
+  id                     String           @id @default(uuid())
+  studentProfileId       String
+  facultyProfileId       String
+  mentorAssignmentId     String?
+  sessionDate            DateTime
+  type                   SessionType      @default(ONE_ON_ONE)
+  discussionSummary      String
+  // Private notes NEVER visible to students or unauthorized users
+  privateFacultyNotes    String?
+  agreedActionItemsSummary String?
+  nextFollowUpDate       DateTime?
+  status                 SessionStatus    @default(COMPLETED)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  studentProfile         StudentProfile   @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  facultyProfile         FacultyProfile   @relation(fields: [facultyProfileId], references: [id], onDelete: Cascade)
+  mentorAssignment       MentorAssignment? @relation(fields: [mentorAssignmentId], references: [id], onDelete: SetNull)
+  actionItems            ActionItem[]
+
+  @@index([studentProfileId])
+  @@index([facultyProfileId])
+  @@index([sessionDate])
+  @@map("mentoring_sessions")
+}
+
+model Recommendation {
+  id                      String                 @id @default(uuid())
+  studentProfileId        String
+  facultyProfileId        String
+  title                   String
+  category                RecommendationCategory @default(ACADEMIC_IMPROVEMENT)
+  explanation             String
+  priority                Priority               @default(MEDIUM)
+  targetDate              DateTime?
+  resources               String?
+  successCriteria         String?
+  status                  RecommendationStatus   @default(IN_PROGRESS)
+  followUpNotes           String?
+  hodEndorsementRequested Boolean                @default(false)
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+
+  studentProfile          StudentProfile         @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  facultyProfile          FacultyProfile         @relation(fields: [facultyProfileId], references: [id], onDelete: Cascade)
+  actionItems             ActionItem[]
+  endorsements            Endorsement[]
+
+  @@index([studentProfileId])
+  @@index([facultyProfileId])
+  @@index([status])
+  @@index([category])
+  @@map("recommendations")
+}
+
+model ActionItem {
+  id               String           @id @default(uuid())
+  studentProfileId String
+  facultyProfileId String
+  sessionId        String?
+  recommendationId String?
+  title            String
+  description      String?
+  dueDate          DateTime?
+  priority         Priority         @default(MEDIUM)
+  status           ActionItemStatus @default(PENDING)
+  studentNotes     String?
+  mentorFeedback   String?
+  completedAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  studentProfile   StudentProfile    @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  facultyProfile   FacultyProfile    @relation(fields: [facultyProfileId], references: [id], onDelete: Cascade)
+  session          MentoringSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  recommendation   Recommendation?   @relation(fields: [recommendationId], references: [id], onDelete: SetNull)
+
+  @@index([studentProfileId])
+  @@index([facultyProfileId])
+  @@index([status])
+  @@map("action_items")
+}
+
+model Endorsement {
+  id                     String              @id @default(uuid())
+  itemType               EndorsementItemType @default(RECOMMENDATION)
+  itemId                 String
+  recommendationId       String?
+  studentProfileId       String?
+  requestedByMentorId    String
+  reviewedByHodId        String?
+  status                 EndorsementStatus   @default(PENDING)
+  decisionNotes          String?
+  originalContentSnapshot Json
+  reviewedAt             DateTime?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  recommendation         Recommendation?     @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  studentProfile         StudentProfile?     @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  requestedByMentor      FacultyProfile      @relation("MentorEndorsements", fields: [requestedByMentorId], references: [id], onDelete: Cascade)
+  reviewedByHod          FacultyProfile?     @relation("HodEndorsements", fields: [reviewedByHodId], references: [id], onDelete: SetNull)
+
+  @@index([requestedByMentorId])
+  @@index([reviewedByHodId])
+  @@index([status])
+  @@map("endorsements")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorId      String?
+  actorRole    Role?
+  action       String
+  entityType   String
+  entityId     String?
+  changeSummary String?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  actor        User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([entityType])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      String   @default("INFO")
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
